@@ -20,6 +20,12 @@ A production-ready Node.js backend application that exposes a properly structure
 
 ## Setup Instructions
 
+# Server Configuration
+  PORT=3000
+  RATE_LIMIT_WINDOW_MS=900000
+  RATE_LIMIT_MAX_REQUESTS=100
+
+
 1. **Install dependencies:**
     ```bash
     npm install
