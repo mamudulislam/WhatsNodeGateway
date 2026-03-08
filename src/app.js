@@ -11,6 +11,9 @@ const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
+// Trust proxy for Render/Cloudflare headers
+app.set('trust proxy', 1);
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
