@@ -1,7 +1,12 @@
-FROM node:18-bullseye-slim
+# Use full Ubuntu Linux as base
+FROM ubuntu:22.04
 
-# Install necessary libraries for Puppeteer/Chromium
+# Prevent interactive prompts during install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Node.js, npm, and dependencies for Puppeteer/Chromium
 RUN apt-get update && apt-get install -y \
+  curl \
   ca-certificates \
   fonts-liberation \
   libappindicator3-1 \
@@ -39,20 +44,27 @@ RUN apt-get update && apt-get install -y \
   lsb-release \
   wget \
   xdg-utils \
-  libxkbcommon0 \
-  libxkbcommon-x11-0 \
-  libxshmfence1 \
-  --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/*
+  build-essential \
+  gnupg \
+  --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js 18 from NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+  apt-get install -y nodejs && \
+  rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /usr/src/app
 
+# Copy package files and install dependencies
 COPY package*.json ./
-
 RUN npm install
 
+# Copy app source code
 COPY . .
 
+# Expose port
 EXPOSE 3000
 
+# Start app
 CMD ["npm", "start"]
