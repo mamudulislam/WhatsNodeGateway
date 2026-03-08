@@ -6,8 +6,35 @@ const logger = require('../config/logger');
 
 class WhatsAppService {
   constructor() {
+    this.queue = new PQueue({ concurrency: 1 });
+    this.io = null;
+    this.latestQR = null;
+    this.client = null;
+    this.isReinitializing = false;
+
+    this.createClient();
+    
+    // Auto-restart if memory is too high (protection for 512MB limit)
+    setInterval(() => {
+      const used = process.memoryUsage().rss / 1024 / 1024;
+      if (used > 450 && !this.isReinitializing) {
+        logger.warn(`Memory usage critical (${Math.round(used)}MB). Triggering preventive restart...`);
+        this.reinitialize();
+      }
+    }, 60000); // Check every minute
+  }
+
+  createClient() {
+    if (this.client) {
+      this.client.removeAllListeners();
+    }
+
     this.client = new Client({
       authStrategy: new LocalAuth(),
+      webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+      },
       puppeteer: {
         headless: true,
         args: [
@@ -17,14 +44,26 @@ class WhatsAppService {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
+          '--disable-sync',
+          '--no-pings',
+          '--disable-background-networking',
+          '--disable-default-apps',
+          '--disable-translate',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--safebrowsing-disable-auto-update',
+          '--hide-scrollbars',
+          '--disable-infobars',
+          '--disable-notifications',
+          '--disable-logging',
+          '--ignore-certificate-errors',
+          '--single-process'
         ]
       }
     });
-
-    this.queue = new PQueue({ concurrency: 1 });
-    this.io = null;
-    this.latestQR = null;
 
     this.client.on('qr', async (qr) => {
       logger.info('QR Code received. Please scan to authenticate.');
@@ -50,7 +89,7 @@ class WhatsAppService {
 
     this.client.on('authenticated', () => {
       logger.info('WhatsApp client authenticated.');
-      this.latestQR = null; // Clear QR code on auth
+      this.latestQR = null;
       if (this.io) {
         this.io.emit('authenticated', { message: 'WhatsApp client authenticated.' });
       }
@@ -68,7 +107,6 @@ class WhatsAppService {
       if (this.io) {
         this.io.emit('disconnected', { reason });
       }
-      // Attempt to reinitialize on disconnect
       this.reinitialize();
     });
   }
@@ -78,25 +116,32 @@ class WhatsAppService {
   }
 
   initialize() {
+    if (!this.client) this.createClient();
     return this.client.initialize().catch((err) => {
       logger.error('Error initializing WhatsApp client', err);
     });
   }
 
   async reinitialize() {
+    if (this.isReinitializing) return;
+    this.isReinitializing = true;
+
     try {
-      logger.info('Destroying client explicitly...');
+      logger.info('Destroying client for reinitialization...');
       await this.client.destroy();
     } catch (err) {
       logger.error('Error destroying client:', err);
     }
     
-    logger.info('Reinitializing client...');
-    this.initialize();
+    logger.info('Recreating client and initializing...');
+    this.createClient();
+    this.initialize().finally(() => {
+      this.isReinitializing = false;
+    });
   }
 
   isReady() {
-    return this.client.info !== undefined;
+    return this.client && this.client.info !== undefined;
   }
 
   getLatestQR() {
@@ -112,7 +157,6 @@ class WhatsAppService {
       const sanitizedNumber = to.replace(/[^0-9]/g, '');
       const chatId = `${sanitizedNumber}@c.us`;
 
-      // Check if number is registered (optional but recommended to avoid issues)
       const isRegistered = await this.client.isRegisteredUser(chatId);
       if (!isRegistered) {
          throw new Error('The phone number is not registered on WhatsApp.');

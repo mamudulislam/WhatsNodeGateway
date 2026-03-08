@@ -65,4 +65,4 @@ ENV WEB_CONCURRENCY=1
 
 # Expose port and start app
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "--max-old-space-size=350", "src/server.js"]

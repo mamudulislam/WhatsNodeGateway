@@ -45,6 +45,12 @@ server.listen(PORT, async () => {
 
   // Initialize WhatsApp Service
   await whatsappService.initialize();
+  
+  // Periodic memory monitoring
+  setInterval(() => {
+    const used = process.memoryUsage();
+    logger.info(`Memory Usage: RSS: ${Math.round(used.rss / 1024 / 1024)}MB, Heap Total: ${Math.round(used.heapTotal / 1024 / 1024)}MB, Heap Used: ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
+  }, 5 * 60 * 1000); // Every 5 minutes
 });
 
 // Handle unhandled Promise rejections
