@@ -6,6 +6,8 @@ const logger = require('./config/logger');
 const errorHandler = require('./middlewares/error');
 const apiLimiter = require('./middlewares/rateLimiter');
 const messageRoutes = require('./routes/message.routes');
+const authRoutes = require('./routes/auth.routes');
+
 
 const app = express();
 
@@ -29,6 +31,8 @@ app.use('/api', apiLimiter);
 
 // Routes
 app.use('/api/messages', messageRoutes);
+app.use('/api/auth', authRoutes);
+
 
 // Custom error handling
 app.use(errorHandler);

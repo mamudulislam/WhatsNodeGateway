@@ -283,18 +283,28 @@
 
         const socket = io();
 
-        socket.on('connect', () => logMsg('Server link established'));
-
-        socket.on('qr', (data) => {
-            logMsg('New QR Code generated');
-            statusAuth.className = 'status-pill waiting';
-            statusAuth.textContent = 'Scan QR with WhatsApp';
-
-            const url = (data && data.url) ? data.url : data;
-            qrHolder.innerHTML = `<img src="${url}" alt="WhatsApp QR">`;
+        socket.on('connect', () => {
+            logMsg('Server link established');
+            checkStatus();
         });
 
-        socket.on('ready', () => {
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const { data } = await response.json();
+                
+                if (data.ready) {
+                    handleReady();
+                } else if (data.qrAvailable) {
+                    // QR is available but not handled by socket yet? 
+                    // Actually socket.io handshake should send it.
+                }
+            } catch (err) {
+                logMsg('Status check failed');
+            }
+        }
+
+        function handleReady() {
             logMsg('WhatsApp Engine Ready');
             statusAuth.className = 'status-pill connected';
             statusAuth.textContent = 'Active & Connected';
@@ -304,6 +314,19 @@
                     <p style="font-weight:600; margin-top:10px;">Authenticated</p>
                 </div>`;
             sendBtn.disabled = false;
+        }
+
+        socket.on('qr', (data) => {
+            logMsg('New QR Code generated');
+            statusAuth.className = 'status-pill waiting';
+            statusAuth.textContent = 'Scan QR with WhatsApp';
+
+            const url = (data && data.url) ? data.url : data.raw || data;
+            qrHolder.innerHTML = `<img src="${url}" alt="WhatsApp QR">`;
+        });
+
+        socket.on('ready', () => {
+            handleReady();
         });
 
         socket.on('auth_failure', (msg) => {
