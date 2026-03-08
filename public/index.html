@@ -247,6 +247,8 @@
             <div id="debug-log">
                 <div class="log-entry">System ready for logs...</div>
             </div>
+
+            <button id="logoutBtn" style="margin-top: 20px; background-color: #fdebee; color: var(--error); border: 1px solid #fad2d8; font-size: 0.9rem;" disabled>Logout from WhatsApp</button>
         </div>
 
         <div class="card">
@@ -274,6 +276,8 @@
         const sendForm = document.getElementById('sendForm');
         const apiResult = document.getElementById('api-result');
 
+        const logoutBtn = document.getElementById('logoutBtn');
+
         function logMsg(msg) {
             const entry = document.createElement('div');
             entry.className = 'log-entry';
@@ -300,6 +304,9 @@
                     statusAuth.className = 'status-pill waiting';
                     statusAuth.textContent = 'Scan QR with WhatsApp';
                     qrHolder.innerHTML = `<img src="${data.qrUrl}" alt="WhatsApp QR">`;
+                    logoutBtn.disabled = false;
+                } else {
+                    logoutBtn.disabled = true;
                 }
             } catch (err) {
                 logMsg('Status check failed');
@@ -316,6 +323,7 @@
                     <p style="font-weight:600; margin-top:10px;">Authenticated</p>
                 </div>`;
             sendBtn.disabled = false;
+            logoutBtn.disabled = false;
         }
 
         socket.on('qr', (data) => {
@@ -325,10 +333,12 @@
 
             const url = (data && data.url) ? data.url : data.raw || data;
             qrHolder.innerHTML = `<img src="${url}" alt="WhatsApp QR">`;
+            logoutBtn.disabled = false;
         });
 
         socket.on('ready', () => {
             handleReady();
+            logoutBtn.disabled = false;
         });
 
         socket.on('auth_failure', (msg) => {
@@ -336,6 +346,7 @@
             statusAuth.className = 'status-pill error';
             statusAuth.textContent = 'Auth Failed';
             sendBtn.disabled = true;
+            logoutBtn.disabled = true;
         });
 
         socket.on('disconnected', (reason) => {
@@ -343,7 +354,30 @@
             statusAuth.className = 'status-pill error';
             statusAuth.textContent = 'Disconnected';
             sendBtn.disabled = true;
+            logoutBtn.disabled = true;
             qrHolder.innerHTML = '<p style="color:var(--error)">Disconnected from WhatsApp.</p>';
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            logMsg('Requesting logout...');
+            logoutBtn.disabled = true;
+            logoutBtn.textContent = 'Logging out...';
+
+            try {
+                const response = await fetch('/api/auth/logout', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    logMsg('Logout successful');
+                    qrHolder.innerHTML = '<p style="color:var(--text-secondary)">Logging out... Reinitializing.</p>';
+                } else {
+                    logMsg('Logout failed: ' + data.message);
+                }
+            } catch (err) {
+                logMsg('Network error during logout');
+            } finally {
+                logoutBtn.textContent = 'Logout from WhatsApp';
+                logoutBtn.disabled = false;
+            }
         });
 
         sendForm.addEventListener('submit', async (e) => {

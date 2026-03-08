@@ -167,6 +167,26 @@ class WhatsAppService {
       return { success: true, to, message };
     });
   }
+
+  async logout() {
+    if (!this.client) {
+      throw new Error('WhatsApp client is not initialized.');
+    }
+
+    try {
+      logger.info('Logging out from WhatsApp...');
+      await this.client.logout();
+      logger.info('Logout successful.');
+      // Reinitialize to allow scanning a new QR code
+      await this.reinitialize();
+      return { success: true, message: 'Successfully logged out and reinitialized.' };
+    } catch (err) {
+      logger.error('Error during WhatsApp logout:', err);
+      // Even if logout fails, we might want to destroy and recreate the client
+      await this.reinitialize();
+      throw err;
+    }
+  }
 }
 
 // Export a singleton instance
