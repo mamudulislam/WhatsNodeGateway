@@ -295,9 +295,11 @@
                 
                 if (data.ready) {
                     handleReady();
-                } else if (data.qrAvailable) {
-                    // QR is available but not handled by socket yet? 
-                    // Actually socket.io handshake should send it.
+                } else if (data.qrAvailable && data.qrUrl) {
+                    logMsg('QR Code available from session');
+                    statusAuth.className = 'status-pill waiting';
+                    statusAuth.textContent = 'Scan QR with WhatsApp';
+                    qrHolder.innerHTML = `<img src="${data.qrUrl}" alt="WhatsApp QR">`;
                 }
             } catch (err) {
                 logMsg('Status check failed');
