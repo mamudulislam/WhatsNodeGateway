@@ -60,6 +60,9 @@ RUN npm install
 # Copy app source
 COPY --chown=appuser:appuser . .
 
+# Set default concurrency to 1 to save resources on Render
+ENV WEB_CONCURRENCY=1
+
 # Expose port and start app
 EXPOSE 3000
 CMD ["npm", "start"]
