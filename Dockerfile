@@ -45,14 +45,21 @@ RUN apt-get update && apt-get install -y \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user and set permissions
+RUN useradd --user-group --create-home appuser
 WORKDIR /usr/src/app
+RUN chown -R appuser:appuser /usr/src/app
 
-COPY package*.json ./
+# Switch to non-root user
+USER appuser
 
+# Copy package.json & install dependencies
+COPY --chown=appuser:appuser package*.json ./
 RUN npm install
 
-COPY . .
+# Copy app source
+COPY --chown=appuser:appuser . .
 
+# Expose port and start app
 EXPOSE 3000
-
 CMD ["npm", "start"]
