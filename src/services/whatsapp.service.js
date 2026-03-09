@@ -5,6 +5,17 @@ const qrcode = require('qrcode');
 const logger = require('../config/logger');
 const { getDb } = require('../config/database');
 
+// Detection for Serverless (Vercel/AWS Lambda)
+const isServerless = !!(process.env.VERCEL || process.env.LAMBDA_TASK_ROOT);
+let chromium = null;
+if (isServerless) {
+  try {
+    chromium = require('@sparticuz/chromium');
+  } catch (e) {
+    logger.warn('Serverless environment detected but @sparticuz/chromium not found.');
+  }
+}
+
 class WhatsAppService {
   constructor() {
     this.queue = new PQueue({ concurrency: 1 });
@@ -27,58 +38,66 @@ class WhatsAppService {
     }, 60000); // Check every minute
   }
 
-  createClient() {
+  async createClient() {
     if (this.client) {
       this.client.removeAllListeners();
+      try {
+        await this.client.destroy();
+      } catch (e) {}
     }
 
+    const authPath = isServerless ? '/tmp/.wwebjs_auth' : undefined;
+
+    const puppeteerOptions = {
+      headless: isServerless ? chromium.headless : true,
+      executablePath: isServerless ? await chromium.executablePath() : undefined,
+      launchTimeout: 120000,
+      args: isServerless ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'] : [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-sync',
+        '--no-pings',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-translate',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--safebrowsing-disable-auto-update',
+        '--hide-scrollbars',
+        '--disable-infobars',
+        '--disable-notifications',
+        '--disable-logging',
+        '--ignore-certificate-errors',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--js-flags="--max-old-space-size=128"',
+        '--disable-canvas-aa',
+        '--disable-2d-canvas-clip-aa',
+        '--disable-gl-drawing-for-tests',
+        '--no-startup-window'
+      ]
+    };
+
     this.client = new Client({
-      authStrategy: new LocalAuth(),
+      authStrategy: new LocalAuth({ dataPath: authPath }),
       webVersionCache: {
         type: 'remote',
         remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
       },
-      puppeteer: {
-        headless: true,
-        // Use undefined instead of null so Puppeteer uses its default bundled chromium
-        executablePath: process.env.RENDER || process.env.NODE_ENV === 'production' 
-          ? undefined 
-          : undefined, 
-        launchTimeout: 120000,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-extensions',
-          '--disable-sync',
-          '--no-pings',
-          '--disable-background-networking',
-          '--disable-default-apps',
-          '--disable-translate',
-          '--metrics-recording-only',
-          '--mute-audio',
-          '--safebrowsing-disable-auto-update',
-          '--hide-scrollbars',
-          '--disable-infobars',
-          '--disable-notifications',
-          '--disable-logging',
-          '--ignore-certificate-errors',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process',
-          '--js-flags="--max-old-space-size=128"',
-          '--disable-canvas-aa',
-          '--disable-2d-canvas-clip-aa',
-          '--disable-gl-drawing-for-tests',
-          '--no-startup-window'
-        ]
-      }
+      puppeteer: puppeteerOptions
     });
 
+    this.setupListeners();
+  }
+
+  setupListeners() {
     this.client.on('qr', async (qr) => {
       logger.info('QR Code received. Please scan to authenticate.');
       qrcodeTerminal.generate(qr, { small: true });
@@ -129,8 +148,11 @@ class WhatsAppService {
     this.io = io;
   }
 
-  initialize() {
-    if (!this.client) this.createClient();
+  async initialize() {
+    if (!this.client) await this.createClient();
+    if (isServerless) {
+        logger.info('INFO: Running in Serverless mode. Note that WhatsApp Web requires a persistent connection which Vercel functions may interrupt.');
+    }
     return this.client.initialize().catch((err) => {
       logger.error('Error initializing WhatsApp client:', err);
       throw err; // Re-throw so the server knows it failed
@@ -155,7 +177,7 @@ class WhatsAppService {
     }
     
     logger.info('Starting fresh WhatsApp client...');
-    this.createClient();
+    await this.createClient();
     this.initialize().finally(() => {
       this.isReinitializing = false;
     });
