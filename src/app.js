@@ -37,25 +37,6 @@ app.use(express.static('public'));
 // Rate limiter for API
 app.use('/api', apiLimiter);
 
-// Lazy initialization for serverless / Vercel
-app.use(async (req, res, next) => {
-  try {
-    const { initializeDb } = require('./config/database');
-    const whatsappService = require('./services/whatsapp.service');
-    
-    // Ensure DB is ready
-    await initializeDb().catch(() => {});
-    
-    // Check if WhatsApp service needs start (don't await fully to avoid timeout)
-    if (!whatsappService.client) {
-        whatsappService.initialize().catch(err => logger.error('Lazy init failed:', err));
-    }
-    next();
-  } catch (err) {
-    next();
-  }
-});
-
 // Health check endpoint for Render/uptime monitoring
 app.get('/health', (req, res) => res.status(200).send('OK'));
 

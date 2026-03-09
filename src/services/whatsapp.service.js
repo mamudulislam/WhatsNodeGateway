@@ -24,14 +24,21 @@ class WhatsAppService {
     this.client = null;
     this.isReinitializing = false;
 
-    this.createClient();
+    this.initPromise = null;
+
+    // Don't auto-start in serverless to prevent cold-start timeout
+    if (!isServerless) {
+      this.createClient();
+    }
     
     // Auto-restart if memory is too high (protection for 512MB limit)
     setInterval(() => {
-      const used = process.memoryUsage().rss / 1024 / 1024;
+      const used = process.memoryUsage ? process.memoryUsage().rss / 1024 / 1024 : 0;
+      if (!used) return; // Fallback if memoryUsage is missing
+
       // On Render 512MB limit, we must be strict. Leave room for Chromium.
       const limit = process.env.RENDER ? 350 : 450;
-      if (used > limit && !this.isReinitializing) {
+      if (used > limit && !this.isReinitializing && this.client) {
         logger.warn(`Memory usage critical (${Math.round(used)}MB). Triggering preventive restart...`);
         this.reinitialize();
       }
@@ -48,41 +55,51 @@ class WhatsAppService {
 
     const authPath = isServerless ? '/tmp/.wwebjs_auth' : undefined;
 
+    let executablePath = undefined;
+    let headless = true;
+    let launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--disable-sync',
+      '--no-pings',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--safebrowsing-disable-auto-update',
+      '--hide-scrollbars',
+      '--disable-infobars',
+      '--disable-notifications',
+      '--disable-logging',
+      '--ignore-certificate-errors',
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--js-flags="--max-old-space-size=128"',
+      '--disable-canvas-aa',
+      '--disable-2d-canvas-clip-aa',
+      '--disable-gl-drawing-for-tests',
+      '--no-startup-window'
+    ];
+
+    if (isServerless && chromium) {
+      executablePath = await chromium.executablePath();
+      headless = chromium.headless;
+      launchArgs = [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'];
+    }
+
     const puppeteerOptions = {
-      headless: isServerless ? chromium.headless : true,
-      executablePath: isServerless ? await chromium.executablePath() : undefined,
+      headless: headless,
+      executablePath: executablePath,
       launchTimeout: 120000,
-      args: isServerless ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'] : [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-sync',
-        '--no-pings',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-translate',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--safebrowsing-disable-auto-update',
-        '--hide-scrollbars',
-        '--disable-infobars',
-        '--disable-notifications',
-        '--disable-logging',
-        '--ignore-certificate-errors',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--js-flags="--max-old-space-size=128"',
-        '--disable-canvas-aa',
-        '--disable-2d-canvas-clip-aa',
-        '--disable-gl-drawing-for-tests',
-        '--no-startup-window'
-      ]
+      args: launchArgs
     };
 
     this.client = new Client({
@@ -149,14 +166,23 @@ class WhatsAppService {
   }
 
   async initialize() {
-    if (!this.client) await this.createClient();
-    if (isServerless) {
-        logger.info('INFO: Running in Serverless mode. Note that WhatsApp Web requires a persistent connection which Vercel functions may interrupt.');
-    }
-    return this.client.initialize().catch((err) => {
-      logger.error('Error initializing WhatsApp client:', err);
-      throw err; // Re-throw so the server knows it failed
-    });
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      if (!this.client) await this.createClient();
+      
+      if (isServerless) {
+        logger.info('Vercel detected. Service will boot but may go offline soon due to serverless timeouts.');
+      }
+
+      return this.client.initialize().catch((err) => {
+        logger.error('Error initializing WhatsApp client:', err);
+        this.initPromise = null; // Allow retry
+        throw err;
+      });
+    })();
+
+    return this.initPromise;
   }
 
   async reinitialize() {
