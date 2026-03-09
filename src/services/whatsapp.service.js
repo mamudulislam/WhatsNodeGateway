@@ -3,6 +3,7 @@ const { default: PQueue } = require('p-queue');
 const qrcodeTerminal = require('qrcode-terminal');
 const qrcode = require('qrcode');
 const logger = require('../config/logger');
+const { getDb } = require('../config/database');
 
 class WhatsAppService {
   constructor() {
@@ -37,6 +38,8 @@ class WhatsAppService {
       },
       puppeteer: {
         headless: true,
+        executablePath: 'C:\\Users\\LaptopAid\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe',
+        launchTimeout: 120000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -60,7 +63,8 @@ class WhatsAppService {
           '--disable-notifications',
           '--disable-logging',
           '--ignore-certificate-errors',
-          '--single-process'
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process'
         ]
       }
     });
@@ -127,13 +131,19 @@ class WhatsAppService {
     this.isReinitializing = true;
 
     try {
-      logger.info('Destroying client for reinitialization...');
-      await this.client.destroy();
+      if (this.client) {
+        logger.info('Shutting down previous WhatsApp client...');
+        await this.client.destroy().catch(err => {
+            if (!err.message.includes('Target closed') && !err.message.includes('Execution context was destroyed')) {
+                logger.error('Error during client destruction:', err);
+            }
+        });
+      }
     } catch (err) {
-      logger.error('Error destroying client:', err);
+      logger.error('Unexpected error in reinitialize cleanup:', err);
     }
     
-    logger.info('Recreating client and initializing...');
+    logger.info('Starting fresh WhatsApp client...');
     this.createClient();
     this.initialize().finally(() => {
       this.isReinitializing = false;
@@ -157,34 +167,61 @@ class WhatsAppService {
       const sanitizedNumber = to.replace(/[^0-9]/g, '');
       const chatId = `${sanitizedNumber}@c.us`;
 
-      const isRegistered = await this.client.isRegisteredUser(chatId);
-      if (!isRegistered) {
-         throw new Error('The phone number is not registered on WhatsApp.');
-      }
+      try {
+        const isRegistered = await this.client.isRegisteredUser(chatId).catch(err => {
+          if (err.message && err.message.length === 1 && err.message === 't') {
+              throw new Error('Internal WhatsApp-Web error (t). Session may be in unstable state. Refresh recommended.');
+          }
+          throw err;
+        });
+        if (!isRegistered) {
+           throw new Error('The phone number is not registered on WhatsApp.');
+        }
 
-      await this.client.sendMessage(chatId, message);
-      logger.info(`Message successfully sent to ${to}`);
-      return { success: true, to, message };
+        await this.client.sendMessage(chatId, message);
+        logger.info(`Message successfully sent to ${to}`);
+        
+        // Log successful message to database
+        const db = getDb();
+        await db.run(
+          'INSERT INTO message_logs (phone, message, status) VALUES (?, ?, ?)',
+          [to, message, 'sent']
+        );
+
+        return { success: true, to, message };
+      } catch (err) {
+        // Log failed message to database
+        try {
+          const db = getDb();
+          await db.run(
+            'INSERT INTO message_logs (phone, message, status, error) VALUES (?, ?, ?, ?)',
+            [to, message, 'failed', err.message]
+          );
+        } catch (dbErr) {
+          logger.error('CRITICAL: Failed to log error to database:', dbErr);
+        }
+        throw err;
+      }
     });
   }
 
   async logout() {
-    if (!this.client) {
-      throw new Error('WhatsApp client is not initialized.');
-    }
-
     try {
-      logger.info('Logging out from WhatsApp...');
-      await this.client.logout();
-      logger.info('Logout successful.');
-      // Reinitialize to allow scanning a new QR code
+      if (!this.client || !this.isReady()) {
+         return { success: false, message: 'No active session to log out from.' };
+      }
+
+      logger.info('Performing official logout from active WhatsApp session...');
+      await this.client.logout().catch(err => {
+          logger.warn('Official logout encounterd an error, forcing system reset.');
+      });
+
+      // After successful logout or attempt, start fresh for next user
       await this.reinitialize();
-      return { success: true, message: 'Successfully logged out and reinitialized.' };
+      return { success: true, message: 'Successfully logged out and session cleared.' };
     } catch (err) {
-      logger.error('Error during WhatsApp logout:', err);
-      // Even if logout fails, we might want to destroy and recreate the client
-      await this.reinitialize();
-      throw err;
+      logger.error('Unexpected error during logout process:', err);
+      return { success: false, message: 'Failed to complete logout properly.' };
     }
   }
 }

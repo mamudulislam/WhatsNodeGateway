@@ -14,7 +14,12 @@ const app = express();
 // Trust proxy for Render/Cloudflare headers
 app.set('trust proxy', 1);
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    referrerPolicy: { policy: 'no-referrer-when-downgrade' },
+  })
+);
 app.use(cors());
 app.use(express.json());
 

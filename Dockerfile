@@ -1,6 +1,6 @@
 FROM node:18-bullseye-slim
 
-# Install necessary libraries for Puppeteer/Chromium
+# Install necessary libraries for Puppeteer/Chromium and build tools for sqlite3
 RUN apt-get update && apt-get install -y \
   ca-certificates \
   fonts-liberation \
@@ -42,13 +42,21 @@ RUN apt-get update && apt-get install -y \
   libxkbcommon0 \
   libxkbcommon-x11-0 \
   libxshmfence1 \
+  # Build tools for npm dependencies (like sqlite3)
+  python3 \
+  make \
+  g++ \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and set permissions
 RUN useradd --user-group --create-home appuser
 WORKDIR /usr/src/app
-RUN chown -R appuser:appuser /usr/src/app
+
+# Pre-create data directories and database file with proper permissions
+RUN mkdir -p logs .wwebjs_auth .wwebjs_cache \
+  && touch database.sqlite \
+  && chown -R appuser:appuser /usr/src/app
 
 # Switch to non-root user
 USER appuser
@@ -62,6 +70,9 @@ COPY --chown=appuser:appuser . .
 
 # Set default concurrency to 1 to save resources on Render
 ENV WEB_CONCURRENCY=1
+
+# Volume for data persistence (if using volumes)
+VOLUME ["/usr/src/app/logs", "/usr/src/app/.wwebjs_auth", "/usr/src/app/database.sqlite"]
 
 # Expose port and start app
 EXPOSE 3000

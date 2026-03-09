@@ -183,14 +183,15 @@
         }
 
         /* Logs */
-        #debug-log {
+        #debug-log,
+        #history-log {
             background: #111b21;
             color: #8696a0;
             font-family: 'SFMono-Regular', Consolas, monospace;
             padding: 12px;
             border-radius: 8px;
             font-size: 11px;
-            max-height: 150px;
+            max-height: 200px;
             overflow-y: auto;
             line-height: 1.4;
         }
@@ -198,7 +199,17 @@
         .log-entry {
             margin-bottom: 4px;
             border-bottom: 1px solid #222e35;
-            padding-bottom: 2px;
+            padding-bottom: 4px;
+        }
+
+        .sent-badge {
+            color: var(--success);
+            font-weight: bold;
+        }
+
+        .failed-badge {
+            color: var(--error);
+            font-weight: bold;
         }
 
         .log-time {
@@ -248,7 +259,9 @@
                 <div class="log-entry">System ready for logs...</div>
             </div>
 
-            <button id="logoutBtn" style="margin-top: 20px; background-color: #fdebee; color: var(--error); border: 1px solid #fad2d8; font-size: 0.9rem;" disabled>Logout from WhatsApp</button>
+            <button id="logoutBtn"
+                style="margin-top: 20px; background-color: #fdebee; color: var(--error); border: 1px solid #fad2d8; font-size: 0.9rem;"
+                disabled>Logout from WhatsApp</button>
         </div>
 
         <div class="card">
@@ -265,6 +278,11 @@
                 <button type="submit" id="sendBtn" disabled>Send via WhatsApp</button>
             </form>
             <div id="api-result" style="margin-top: 15px; text-align: center; min-height: 24px;"></div>
+
+            <h2 style="margin-top: 30px;">Message History (Latest 50)</h2>
+            <div id="history-log">
+                <div class="log-entry">No messages sent yet.</div>
+            </div>
         </div>
     </div>
 
@@ -294,17 +312,15 @@
 
         async function checkStatus() {
             try {
-                const response = await fetch('/api/auth/status');
-                const { data } = await response.json();
-                
                 if (data.ready) {
                     handleReady();
+                    logoutBtn.disabled = false;
                 } else if (data.qrAvailable && data.qrUrl) {
                     logMsg('QR Code available from session');
                     statusAuth.className = 'status-pill waiting';
                     statusAuth.textContent = 'Scan QR with WhatsApp';
                     qrHolder.innerHTML = `<img src="${data.qrUrl}" alt="WhatsApp QR">`;
-                    logoutBtn.disabled = false;
+                    logoutBtn.disabled = true; // Cannot logout if not login
                 } else {
                     logoutBtn.disabled = true;
                 }
@@ -333,7 +349,7 @@
 
             const url = (data && data.url) ? data.url : data.raw || data;
             qrHolder.innerHTML = `<img src="${url}" alt="WhatsApp QR">`;
-            logoutBtn.disabled = false;
+            logoutBtn.disabled = true; // Still not logged in
         });
 
         socket.on('ready', () => {
@@ -346,7 +362,7 @@
             statusAuth.className = 'status-pill error';
             statusAuth.textContent = 'Auth Failed';
             sendBtn.disabled = true;
-            logoutBtn.disabled = true;
+            logoutBtn.disabled = true; // Cannot logout if not login
         });
 
         socket.on('disconnected', (reason) => {
@@ -354,7 +370,7 @@
             statusAuth.className = 'status-pill error';
             statusAuth.textContent = 'Disconnected';
             sendBtn.disabled = true;
-            logoutBtn.disabled = true;
+            logoutBtn.disabled = true; // Cannot logout if not login
             qrHolder.innerHTML = '<p style="color:var(--error)">Disconnected from WhatsApp.</p>';
         });
 
@@ -408,8 +424,38 @@
                 apiResult.innerHTML = `<span style="color: var(--error);">Network Error</span>`;
             } finally {
                 sendBtn.disabled = false;
+                loadHistory(); // Refresh history immediately
             }
         });
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/messages/logs');
+                const { data } = await response.json();
+
+                const historyLog = document.getElementById('history-log');
+                if (data && data.length > 0) {
+                    historyLog.innerHTML = data.map(log => `
+                        <div class="log-entry">
+                            <span class="log-time">[${log.timestamp}]</span>
+                            <strong>${log.phone}</strong>: ${log.message.substring(0, 50)}${log.message.length > 50 ? '...' : ''}
+                            <span class="${log.status === 'sent' ? 'sent-badge' : 'failed-badge'}">
+                                ${log.status.toUpperCase()}
+                            </span>
+                            ${log.error ? `<br><small style="color:var(--error)">Error: ${log.error}</small>` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    historyLog.innerHTML = '<div class="log-entry">No messages found in database.</div>';
+                }
+            } catch (err) {
+                console.error('Failed to load history', err);
+            }
+        }
+
+        // Load history on startup and periodically
+        loadHistory();
+        setInterval(loadHistory, 30000); // Every 30 seconds
     </script>
 </body>
 

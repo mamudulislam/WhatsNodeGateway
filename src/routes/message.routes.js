@@ -21,4 +21,6 @@ router.post(
   messageController.sendMessage
 );
 
+router.get('/logs', messageController.getLogs);
+
 module.exports = router;

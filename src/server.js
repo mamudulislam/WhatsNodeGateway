@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const app = require('./app');
 const whatsappService = require('./services/whatsapp.service');
 const logger = require('./config/logger');
+const { initializeDb } = require('./config/database');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -43,8 +44,17 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
   logger.info(`Server is running on port ${PORT}`);
 
-  // Initialize WhatsApp Service
-  await whatsappService.initialize();
+  try {
+      // Initialize Database
+      await initializeDb();
+      
+      // Initialize WhatsApp Service
+      await whatsappService.initialize();
+  } catch (err) {
+      logger.error('Failed to initialize application services:', err);
+      process.exit(1);
+  }
+
   
   // Periodic memory monitoring
   setInterval(() => {
@@ -55,10 +65,17 @@ server.listen(PORT, async () => {
 
 // Handle unhandled Promise rejections
 process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Rejection! Shutting down...', err);
-  server.close(() => {
-    process.exit(1);
-  });
+  const isPuppeteerError =
+    err.message && (err.message.includes('Target closed') || err.message.includes('Execution context was destroyed') || err.message.includes('detached Frame'));
+
+  if (isPuppeteerError) {
+    logger.warn('Skipping process exit for transient Puppeteer/WhatsApp error:', err.message);
+  } else {
+    logger.error('Unhandled Rejection! Shutting down...', err);
+    server.close(() => {
+      process.exit(1);
+    });
+  }
 });
 
 // Trigger restart
