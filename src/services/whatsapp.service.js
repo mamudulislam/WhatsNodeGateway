@@ -18,7 +18,9 @@ class WhatsAppService {
     // Auto-restart if memory is too high (protection for 512MB limit)
     setInterval(() => {
       const used = process.memoryUsage().rss / 1024 / 1024;
-      if (used > 450 && !this.isReinitializing) {
+      // On Render 512MB limit, we must be strict. Leave room for Chromium.
+      const limit = process.env.RENDER ? 350 : 450;
+      if (used > limit && !this.isReinitializing) {
         logger.warn(`Memory usage critical (${Math.round(used)}MB). Triggering preventive restart...`);
         this.reinitialize();
       }
@@ -38,7 +40,10 @@ class WhatsAppService {
       },
       puppeteer: {
         headless: true,
-        executablePath: 'C:\\Users\\LaptopAid\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe',
+        // Remove hardcoded Windows path to prevent crash on Render/Linux
+        executablePath: process.env.RENDER || process.env.NODE_ENV === 'production' 
+          ? null // Let Puppeteer use its downloaded Chromium on Render
+          : undefined, // Let Puppeteer use its downloaded Chromium locally or fallback to default
         launchTimeout: 120000,
         args: [
           '--no-sandbox',
@@ -64,7 +69,12 @@ class WhatsAppService {
           '--disable-logging',
           '--ignore-certificate-errors',
           '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process'
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--js-flags="--max-old-space-size=128"',
+          '--disable-canvas-aa',
+          '--disable-2d-canvas-clip-aa',
+          '--disable-gl-drawing-for-tests',
+          '--no-startup-window'
         ]
       }
     });
@@ -122,7 +132,8 @@ class WhatsAppService {
   initialize() {
     if (!this.client) this.createClient();
     return this.client.initialize().catch((err) => {
-      logger.error('Error initializing WhatsApp client', err);
+      logger.error('Error initializing WhatsApp client:', err);
+      throw err; // Re-throw so the server knows it failed
     });
   }
 

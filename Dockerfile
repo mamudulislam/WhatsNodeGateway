@@ -70,10 +70,12 @@ COPY --chown=appuser:appuser . .
 
 # Set default concurrency to 1 to save resources on Render
 ENV WEB_CONCURRENCY=1
+# Set production environment
+ENV NODE_ENV=production
 
 # Volume for data persistence (if using volumes)
 VOLUME ["/usr/src/app/logs", "/usr/src/app/.wwebjs_auth", "/usr/src/app/database.sqlite"]
 
 # Expose port and start app
 EXPOSE 3000
-CMD ["node", "--max-old-space-size=350", "src/server.js"]
+CMD ["node", "--max-old-space-size=256", "src/server.js"]

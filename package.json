@@ -4,7 +4,7 @@
   "description": "A production-ready Node.js backend application that exposes a properly structured RESTful API and integrates with WhatsApp Web. It allows programmatic sending of WhatsApp messages using `whatsapp-web.js`, includes real-time QR code transmission via `Socket.IO`, session persistence, and queue management.",
   "main": "index.js",
   "scripts": {
-    "start": "node --max-old-space-size=350 src/server.js",
+    "start": "node --max-old-space-size=256 src/server.js",
     "dev": "nodemon src/server.js"
   },
   "keywords": [],
