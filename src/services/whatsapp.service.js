@@ -56,7 +56,7 @@ class WhatsAppService {
     const authPath = isServerless ? '/tmp/.wwebjs_auth' : undefined;
 
     let executablePath = undefined;
-    let headless = true;
+    let headless = true; // Always headless for integration consistency
     let launchArgs = [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -68,7 +68,6 @@ class WhatsAppService {
       '--disable-software-rasterizer',
       '--disable-extensions',
       '--disable-sync',
-      '--no-pings',
       '--disable-background-networking',
       '--disable-default-apps',
       '--disable-translate',
@@ -80,14 +79,23 @@ class WhatsAppService {
       '--disable-notifications',
       '--disable-logging',
       '--ignore-certificate-errors',
-      '--disable-web-security',
       '--disable-features=IsolateOrigins,site-per-process',
-      '--js-flags="--max-old-space-size=128"',
-      '--disable-canvas-aa',
-      '--disable-2d-canvas-clip-aa',
-      '--disable-gl-drawing-for-tests',
-      '--no-startup-window'
+      '--disable-breakpad',
+      '--disable-hang-monitor',
+      '--disable-client-side-phishing-detection',
+      '--disable-default-cookie-security',
+      '--disable-renderer-backgrounding',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--single-process',
+      '--disable-web-security',
+      '--disable-webgl',
+      '--js-flags="--max-old-space-size=256"'
     ];
+
+    if (!isServerless) {
+      launchArgs.push('--start-maximized');
+    }
 
     if (isServerless && chromium) {
       executablePath = await chromium.executablePath();
@@ -98,15 +106,25 @@ class WhatsAppService {
     const puppeteerOptions = {
       headless: headless,
       executablePath: executablePath,
-      launchTimeout: 120000,
-      args: launchArgs
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+      launchTimeout: 120000, 
+      timeout: 120000,       
+      args: launchArgs,
+      defaultViewport: null,
+      dumpio: false,
+      ignoreDefaultArgs: ['--enable-automation']
     };
 
     this.client = new Client({
       authStrategy: new LocalAuth({ dataPath: authPath }),
+      authTimeoutMs: 120000, 
+      qrMaxRetries: 10,
+      restartOnAuthFail: true,
       webVersionCache: {
         type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1012170943-alpha.html', // Use a newer version
       },
       puppeteer: puppeteerOptions
     });
@@ -152,12 +170,20 @@ class WhatsAppService {
       }
     });
 
-    this.client.on('disconnected', (reason) => {
+    this.client.on('disconnected', async (reason) => {
       logger.warn('WhatsApp client disconnected:', reason);
+      this.latestQR = null;
       if (this.io) {
         this.io.emit('disconnected', { reason });
       }
-      this.reinitialize();
+      
+      // Clear auth folder if disconnected due to unpair/logout
+      // This ensures we get a newline QR
+      if (reason === 'NAVIGATION' || reason === 'LOGOUT') {
+         logger.info('Performing session cleanup after logout...');
+      }
+
+      await this.reinitialize();
     });
   }
 
@@ -165,21 +191,34 @@ class WhatsAppService {
     this.io = io;
   }
 
-  async initialize() {
-    if (this.initPromise) return this.initPromise;
+  async initialize(retryCount = 0) {
+    if (this.initPromise && retryCount === 0) return this.initPromise;
+
+    const MAX_RETRIES = 3;
 
     this.initPromise = (async () => {
-      if (!this.client) await this.createClient();
-      
-      if (isServerless) {
-        logger.info('Vercel detected. Service will boot but may go offline soon due to serverless timeouts.');
-      }
+      try {
+        if (!this.client) await this.createClient();
+        
+        if (isServerless) {
+          logger.info('Vercel detected. Service will boot but may go offline soon due to serverless timeouts.');
+        }
 
-      return this.client.initialize().catch((err) => {
-        logger.error('Error initializing WhatsApp client:', err);
-        this.initPromise = null; // Allow retry
+        logger.info(`Initializing WhatsApp client (Attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+        await this.client.initialize();
+      } catch (err) {
+        logger.error(`Error initializing WhatsApp client (Attempt ${retryCount + 1}):`, err.message);
+        
+        if (retryCount < MAX_RETRIES) {
+          logger.info(`Retrying initialization in 10 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          this.initPromise = null; // Reset for retry
+          return this.initialize(retryCount + 1);
+        }
+        
+        this.initPromise = null; // Allow manual retry later
         throw err;
-      });
+      }
     })();
 
     return this.initPromise;

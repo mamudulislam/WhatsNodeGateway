@@ -1,465 +1,511 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Automation Dashboard</title>
+    <title>WhatsApp GateWay | Bright Future Soft</title>
+    <!-- Modern Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root {
-            --wa-green: #00a884;
-            --wa-dark: #111b21;
-            --bg-light: #f0f2f5;
-            --border: #e1e9ee;
-            --text-secondary: #667781;
-            --error: #ea0038;
-            --success: #1fa855;
-            --warning: #ff9800;
+            --primary: #00a884;
+            --primary-dark: #008f6f;
+            --secondary: #111b21;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0b141a;
+            --card-bg: #111b21;
+            --text-main: #e9edef;
+            --text-muted: #8696a0;
+            --border: #222e35;
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: background 0.3s, color 0.3s, border 0.3s;
         }
 
         body {
-            font-family: 'Inter', -apple-system, sans-serif;
-            background-color: var(--bg-light);
-            color: var(--wa-dark);
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
             margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            padding: 24px;
             min-height: 100vh;
-            padding: 40px 20px;
-            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
-        .dashboard {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 24px;
-            max-width: 1100px;
+        .container {
+            max-width: 1200px;
             width: 100%;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 24px;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            padding: 0 0 32px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 400;
         }
 
         .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid rgba(0, 0, 0, 0.03);
-        }
-
-        h2 {
-            margin: 0 0 20px 0;
-            font-size: 1.1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Status Indicator */
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-            width: fit-content;
-        }
-
-        .status-pill::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-
-        .waiting {
-            background: #fff4e5;
-            color: #b76e00;
-        }
-
-        .waiting::before {
-            background: var(--warning);
-            animation: pulse 1.5s infinite;
-        }
-
-        .connected {
-            background: #e7f6ed;
-            color: var(--success);
-        }
-
-        .connected::before {
-            background: var(--success);
-        }
-
-        .error {
-            background: #fdebee;
-            color: var(--error);
-        }
-
-        .error::before {
-            background: var(--error);
-        }
-
-        /* QR Container */
-        #qr-holder {
-            background: #fafafa;
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            min-height: 260px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.02);
             position: relative;
             overflow: hidden;
         }
 
-        #qr-holder img {
-            width: 220px;
-            height: 220px;
-            object-fit: contain;
+        h2 {
+            margin: 0 0 24px 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        /* Form Styling */
-        .form-group {
-            margin-bottom: 20px;
-        }
+        h2 svg { width: 20px; height: 20px; color: var(--primary); }
 
-        label {
-            display: block;
-            margin-bottom: 8px;
+        /* Status Section */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-weight: 600;
             font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-secondary);
+            margin-bottom: 24px;
         }
 
-        input,
-        textarea {
+        .st-waiting { background: #fffbeb; color: #b45309; }
+        .st-ready { background: #f0fdf4; color: #15803d; }
+        .st-error { background: #fef2f2; color: #b91c1c; }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .st-waiting .indicator { animation: pulse 1.5s infinite; }
+
+        /* QR Code Layout */
+        #qr-container {
+            text-align: center;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 16px;
+            border: 2px dashed #e2e8f0;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        [data-theme="dark"] #qr-container { background: #0b141a; border-color: #222e35; }
+
+        #qr-image {
+            width: 240px;
+            height: 240px;
+            object-fit: contain;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .qr-placeholder {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* Form Controls */
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 0.9rem; color: var(--text-muted); }
+        input, textarea {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
+            border-radius: 12px;
             border: 1px solid var(--border);
-            border-radius: 8px;
             font-family: inherit;
             font-size: 0.95rem;
-            box-sizing: border-box;
+            background: var(--bg);
+            color: var(--text-main);
             transition: all 0.2s;
         }
-
-        input:focus,
-        textarea:focus {
+        input:focus, textarea:focus {
             outline: none;
-            border-color: var(--wa-green);
-            box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(0, 168, 132, 0.1);
         }
 
         button {
-            background-color: var(--wa-green);
-            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
             border: none;
-            padding: 14px;
-            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-logout { 
+            background: transparent; 
+            color: var(--error); 
+            border: 1.5px solid var(--error); 
+            margin-top: 12px;
             width: 100%;
-            font-size: 1rem;
-            transition: background 0.2s;
         }
+        .btn-logout:hover:not(:disabled) { background: #fff1f2; }
 
-        button:hover:not(:disabled) {
-            background-color: #008f6f;
-        }
-
-        button:disabled {
-            background-color: #cbd5e0;
-            cursor: not-allowed;
-        }
-
-        /* Logs */
-        #debug-log,
-        #history-log {
-            background: #111b21;
-            color: #8696a0;
-            font-family: 'SFMono-Regular', Consolas, monospace;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 11px;
-            max-height: 200px;
+        /* Logs & History */
+        .scroller {
+            height: 250px;
             overflow-y: auto;
-            line-height: 1.4;
+            border-radius: 12px;
+            background: #fdfdfd;
+            border: 1px solid var(--border);
+            padding: 12px;
         }
 
-        .log-entry {
-            margin-bottom: 4px;
-            border-bottom: 1px solid #222e35;
-            padding-bottom: 4px;
+        [data-theme="dark"] .scroller { background: #0c1c24; }
+
+        .log-item {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.8rem;
+            display: flex;
+            gap: 12px;
+        }
+        .log-time { color: var(--primary); font-weight: 600; min-width: 65px; }
+
+        .history-item {
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
         }
 
-        .sent-badge {
-            color: var(--success);
-            font-weight: bold;
+        .status-tag {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            float: right;
         }
-
-        .failed-badge {
-            color: var(--error);
-            font-weight: bold;
-        }
-
-        .log-time {
-            color: var(--wa-green);
-            margin-right: 5px;
-        }
+        .tag-sent { background: #dcfce7; color: #166534; }
+        .tag-failed { background: #fee2e2; color: #991b1b; }
 
         @keyframes pulse {
-            0% {
-                opacity: 1;
-                transform: scale(1);
-            }
-
-            50% {
-                opacity: 0.4;
-                transform: scale(1.2);
-            }
-
-            100% {
-                opacity: 1;
-                transform: scale(1);
-            }
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
-        @media (max-width: 850px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
         }
+
+        /* Branding link */
+        .footer-brand {
+            margin-top: 40px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .footer-brand a { color: var(--primary); text-decoration: none; font-weight: 600; }
     </style>
 </head>
-
 <body>
 
-    <div class="dashboard">
+    <header>
+        <div class="logo">
+            <h1>WhatsApp Gateway</h1>
+            <span>by Bright Future Soft</span>
+        </div>
+        <div id="theme-toggle">
+            <!-- Theme toggle space -->
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar: Status & Auth -->
         <div class="card">
-            <h2>System Status</h2>
-            <div id="status-auth" class="status-pill waiting">Waiting for server...</div>
-
-            <div id="qr-holder">
-                <p style="color: #667781; font-size: 0.8rem; text-align: center; padding: 20px;">
-                    Initializing session...<br>QR code will appear here.
-                </p>
+            <h2>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                System Status
+            </h2>
+            
+            <div id="status-badge" class="status-badge st-waiting">
+                <div class="indicator"></div>
+                <span id="status-text">Booting Engine...</span>
             </div>
 
-            <div id="debug-log">
-                <div class="log-entry">System ready for logs...</div>
+            <div id="qr-container">
+                <div id="qr-content" class="qr-placeholder">
+                    <svg style="width: 48px; height: 48px; opacity: 0.3; margin-bottom: 15px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3m3 0v3m0 3h-3m-3 0v-3m3 0h3"></path></svg>
+                    <p>Waking up Puppeteer...<br>Please wait.</p>
+                </div>
             </div>
 
-            <button id="logoutBtn"
-                style="margin-top: 20px; background-color: #fdebee; color: var(--error); border: 1px solid #fad2d8; font-size: 0.9rem;"
-                disabled>Logout from WhatsApp</button>
+            <h2 style="margin-top: 20px; font-size: 1rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"></path></svg>
+                Engine Logs
+            </h2>
+            <div id="app-logs" class="scroller">
+                <div class="log-item">Ready for operation...</div>
+            </div>
+
+            <button id="logoutBtn" class="btn-logout" disabled>
+                <svg style="width:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                Terminate Session
+            </button>
         </div>
 
+        <!-- Main Content: Controls -->
         <div class="card">
-            <h2>Send New Message</h2>
+            <h2>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                Programmatic Sender
+            </h2>
+            
             <form id="sendForm">
                 <div class="form-group">
-                    <label for="phone">Recipient Phone Number</label>
+                    <label>Recipient Phone Number (Full E.164 without +)</label>
                     <input type="text" id="phone" placeholder="e.g. 8801792205520" required>
                 </div>
                 <div class="form-group">
-                    <label for="message">Message</label>
-                    <textarea id="message" rows="6" placeholder="Type your message here..." required></textarea>
+                    <label>Message Content</label>
+                    <textarea id="message" rows="4" placeholder="Type message payload here..." required></textarea>
                 </div>
-                <button type="submit" id="sendBtn" disabled>Send via WhatsApp</button>
+                <button type="submit" id="sendBtn" class="btn-primary" disabled>
+                    Send Outbound Message
+                </button>
             </form>
-            <div id="api-result" style="margin-top: 15px; text-align: center; min-height: 24px;"></div>
+            <div id="api-feedback" style="margin-top: 12px; font-size: 0.9rem;"></div>
 
-            <h2 style="margin-top: 30px;">Message History (Latest 50)</h2>
-            <div id="history-log">
-                <div class="log-entry">No messages sent yet.</div>
+            <h2 style="margin-top: 32px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                Recent Transmissions (Top 50)
+            </h2>
+            <div id="history-logs" class="scroller" style="height: 300px;">
+                <div class="qr-placeholder" style="padding-top:100px;">Load messages from DB...</div>
             </div>
         </div>
     </div>
 
+    <div class="footer-brand">
+        Official Technical Task Implementation for <a href="https://www.brightfuturesoft.com" target="_blank">Bright Future Soft</a>
+    </div>
+
     <script>
-        const debugLog = document.getElementById('debug-log');
-        const statusAuth = document.getElementById('status-auth');
-        const qrHolder = document.getElementById('qr-holder');
+        const logsBox = document.getElementById('app-logs');
+        const stBadge = document.getElementById('status-badge');
+        const stText = document.getElementById('status-text');
+        const qrContainer = document.getElementById('qr-container');
+        const qrContent = document.getElementById('qr-content');
         const sendBtn = document.getElementById('sendBtn');
-        const sendForm = document.getElementById('sendForm');
-        const apiResult = document.getElementById('api-result');
-
         const logoutBtn = document.getElementById('logoutBtn');
+        const historyBox = document.getElementById('history-logs');
 
-        function logMsg(msg) {
+        function addLog(msg) {
             const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString([], { hour12: false })}</span> ${msg}`;
-            debugLog.prepend(entry);
+            entry.className = 'log-item';
+            entry.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString()}</span> <span>${msg}</span>`;
+            logsBox.prepend(entry);
         }
 
         const socket = io();
 
         socket.on('connect', () => {
-            logMsg('Server link established');
-            checkStatus();
+            addLog('Socket connected to backend');
+            fetchStatus();
         });
 
-        async function checkStatus() {
+        async function fetchStatus() {
             try {
-                const response = await fetch('/api/auth/status');
-                const { data } = await response.json();
+                const res = await fetch('/api/auth/status');
+                const { data } = await res.json();
                 
-                if (data.ready) {
-                    handleReady();
-                    logoutBtn.disabled = false;
-                } else if (data.qrAvailable && data.qrUrl) {
-                    logMsg('QR Code available from session');
-                    statusAuth.className = 'status-pill waiting';
-                    statusAuth.textContent = 'Scan QR with WhatsApp';
-                    qrHolder.innerHTML = `<img src="${data.qrUrl}" alt="WhatsApp QR">`;
-                    logoutBtn.disabled = true; // Cannot logout if not login
-                } else {
-                    logoutBtn.disabled = true;
+                if (data.ready) handleStateReady();
+                else if (data.qrAvailable) showQR(data.qrUrl);
+                else {
+                    addLog('Waiting for WhatsApp initialization...');
+                    stText.textContent = 'Initializing Engine...';
                 }
-            } catch (err) {
-                logMsg('Status check failed');
+            } catch (e) {
+                addLog('Failed to fetch status from engine');
             }
         }
 
-        function handleReady() {
-            logMsg('WhatsApp Engine Ready');
-            statusAuth.className = 'status-pill connected';
-            statusAuth.textContent = 'Active & Connected';
-            qrHolder.innerHTML = `
+        function handleStateReady() {
+            stBadge.className = 'status-badge st-ready';
+            stText.textContent = 'Active & Connected';
+            qrContainer.innerHTML = `
                 <div style="text-align:center">
-                    <div style="font-size: 40px; color: var(--wa-green);">✓</div>
-                    <p style="font-weight:600; margin-top:10px;">Authenticated</p>
-                </div>`;
+                    <div style="font-size: 64px; color: var(--primary);">✓</div>
+                    <div style="font-weight: 700; font-size: 1.2rem; margin-top: 10px;">Session Active</div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Authenticated via LocalAuth</p>
+                </div>
+            `;
             sendBtn.disabled = false;
             logoutBtn.disabled = false;
         }
 
-        socket.on('qr', (data) => {
-            logMsg('New QR Code generated');
-            statusAuth.className = 'status-pill waiting';
-            statusAuth.textContent = 'Scan QR with WhatsApp';
+        function showQR(url) {
+            stBadge.className = 'status-badge st-waiting';
+            stText.textContent = 'Awaiting Device Scan';
+            qrContainer.innerHTML = `
+                <img id="qr-image" src="${url}" alt="WhatsApp QR">
+                <p style="margin-top: 15px; font-size: 0.8rem; color: var(--text-muted);">
+                    Scan this with your mobile phone<br>to link the gateway.
+                </p>
+            `;
+            sendBtn.disabled = true;
+            logoutBtn.disabled = true;
+        }
 
-            const url = (data && data.url) ? data.url : data.raw || data;
-            qrHolder.innerHTML = `<img src="${url}" alt="WhatsApp QR">`;
-            logoutBtn.disabled = true; // Still not logged in
+        socket.on('qr', (data) => {
+            addLog('Fresh QR transmission received');
+            showQR(data.url || data);
         });
 
         socket.on('ready', () => {
-            handleReady();
-            logoutBtn.disabled = false;
+            addLog('WhatsApp Engine is now READY');
+            handleStateReady();
         });
 
-        socket.on('auth_failure', (msg) => {
-            logMsg('Critical: Auth Failure');
-            statusAuth.className = 'status-pill error';
-            statusAuth.textContent = 'Auth Failed';
-            sendBtn.disabled = true;
-            logoutBtn.disabled = true; // Cannot logout if not login
+        socket.on('authenticated', () => {
+            addLog('Session Authentication Successful');
         });
 
         socket.on('disconnected', (reason) => {
-            logMsg('Disconnected: ' + (reason.reason || 'Manual logout'));
-            statusAuth.className = 'status-pill error';
-            statusAuth.textContent = 'Disconnected';
+            addLog('Critical: Gateway Disconnected - ' + (reason.reason || 'Manual'));
+            stBadge.className = 'status-badge st-error';
+            stText.textContent = 'Disconnected';
+            qrContainer.innerHTML = '<div class="qr-placeholder">Engine offline. Restarting...</div>';
             sendBtn.disabled = true;
-            logoutBtn.disabled = true; // Cannot logout if not login
-            qrHolder.innerHTML = '<p style="color:var(--error)">Disconnected from WhatsApp.</p>';
         });
 
-        logoutBtn.addEventListener('click', async () => {
-            logMsg('Requesting logout...');
-            logoutBtn.disabled = true;
-            logoutBtn.textContent = 'Logging out...';
-
-            try {
-                const response = await fetch('/api/auth/logout', { method: 'POST' });
-                const data = await response.json();
-                if (data.success) {
-                    logMsg('Logout successful');
-                    qrHolder.innerHTML = '<p style="color:var(--text-secondary)">Logging out... Reinitializing.</p>';
-                } else {
-                    logMsg('Logout failed: ' + data.message);
-                }
-            } catch (err) {
-                logMsg('Network error during logout');
-            } finally {
-                logoutBtn.textContent = 'Logout from WhatsApp';
-                logoutBtn.disabled = false;
-            }
-        });
-
-        sendForm.addEventListener('submit', async (e) => {
+        // Form Handling
+        document.getElementById('sendForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const phone = document.getElementById('phone').value;
             const message = document.getElementById('message').value;
+            const feedback = document.getElementById('api-feedback');
 
-            apiResult.innerHTML = '<small style="color:var(--text-secondary)">Sending message...</small>';
+            feedback.innerHTML = '<span style="color:var(--text-muted)">Dispatched to queue...</span>';
             sendBtn.disabled = true;
 
             try {
-                const response = await fetch('/api/messages/send', {
+                const res = await fetch('/api/messages/send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phone, message })
                 });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    apiResult.innerHTML = `<span style="color: var(--success); font-weight:600;">✓ Message Sent Successfully</span>`;
+                const result = await res.json();
+                
+                if (res.ok) {
+                    feedback.innerHTML = '<span style="color:var(--success)">✓ Transmission success!</span>';
                     document.getElementById('message').value = '';
-                    logMsg(`Sent to ${phone}`);
+                    addLog('Sent message to ' + phone);
+                    loadHistory();
                 } else {
-                    apiResult.innerHTML = `<span style="color: var(--error);">Error: ${data.error || 'Failed to send'}</span>`;
+                    feedback.innerHTML = `<span style="color:var(--error)">× Error: ${result.error || 'Failed'}</span>`;
                 }
             } catch (err) {
-                apiResult.innerHTML = `<span style="color: var(--error);">Network Error</span>`;
+                feedback.innerHTML = '<span style="color:var(--error)">× Network isolation error</span>';
             } finally {
                 sendBtn.disabled = false;
-                loadHistory(); // Refresh history immediately
             }
         });
 
         async function loadHistory() {
             try {
-                const response = await fetch('/api/messages/logs');
-                const { data } = await response.json();
-
-                const historyLog = document.getElementById('history-log');
-                if (data && data.length > 0) {
-                    historyLog.innerHTML = data.map(log => `
-                        <div class="log-entry">
-                            <span class="log-time">[${log.timestamp}]</span>
-                            <strong>${log.phone}</strong>: ${log.message.substring(0, 50)}${log.message.length > 50 ? '...' : ''}
-                            <span class="${log.status === 'sent' ? 'sent-badge' : 'failed-badge'}">
-                                ${log.status.toUpperCase()}
-                            </span>
-                            ${log.error ? `<br><small style="color:var(--error)">Error: ${log.error}</small>` : ''}
-                        </div>
-                    `).join('');
-                } else {
-                    historyLog.innerHTML = '<div class="log-entry">No messages found in database.</div>';
+                const res = await fetch('/api/messages/logs');
+                const { data } = await res.json();
+                if (!data || data.length === 0) {
+                    historyBox.innerHTML = '<div class="qr-placeholder" style="padding-top:100px;">No message logs found in database.</div>';
+                    return;
                 }
-            } catch (err) {
-                console.error('Failed to load history', err);
+                historyBox.innerHTML = data.map(item => `
+                    <div class="history-item">
+                        <span class="status-tag ${item.status === 'sent' ? 'tag-sent' : 'tag-failed'}">${item.status}</span>
+                        <div style="font-weight:700; font-size: 0.9rem;">${item.phone}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">${item.message}</div>
+                        ${item.error ? `<div style="color: var(--error); font-size: 0.7rem; margin-top: 4px;">Error: ${item.error}</div>` : ''}
+                        <div style="font-size: 0.65rem; color: #cbd5e1; margin-top: 4px;">${item.timestamp}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                historyBox.innerHTML = '<div class="qr-placeholder">Failed to load history data.</div>';
             }
         }
 
-        // Load history on startup and periodically
+        logoutBtn.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to terminate the active session and logout?')) return;
+            addLog('Dispatching logout request...');
+            logoutBtn.disabled = true;
+            try {
+                const res = await fetch('/api/auth/logout', { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    addLog('Session terminated. Reinitializing engine.');
+                }
+            } catch (e) {
+                addLog('Logout request failed');
+            }
+        });
+
+        // Init
         loadHistory();
-        setInterval(loadHistory, 30000); // Every 30 seconds
+        setInterval(loadHistory, 15000);
     </script>
 </body>
-
 </html>

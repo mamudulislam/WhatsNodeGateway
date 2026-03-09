@@ -1,0 +1,11 @@
+{
+  "ignore": [
+    ".wwebjs_auth",
+    ".wwebjs_cache",
+    "logs",
+    "*.log",
+    "database.sqlite",
+    "node_modules"
+  ],
+  "delay": "1000"
+}

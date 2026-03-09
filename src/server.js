@@ -13,31 +13,9 @@ const io = new Server(server, {
   },
 });
 
+const socketHandler = require('./sockets/socket.handler');
 whatsappService.setSocketIO(io);
-
-io.on('connection', (socket) => {
-  logger.info(`Socket connected: ${socket.id}`);
-
-  // If the client is already ready, tell the new connected socket
-  if (whatsappService.isReady()) {
-    socket.emit('ready', { message: 'WhatsApp client is ready!' });
-  } else {
-    // If not ready but we have a cached QR, send it immediately
-    const latestQR = whatsappService.getLatestQR();
-    if (latestQR) {
-      const qrcode = require('qrcode');
-      qrcode.toDataURL(latestQR).then((url) => {
-        socket.emit('qr', { raw: latestQR, url });
-      }).catch(() => {
-        socket.emit('qr', { raw: latestQR });
-      });
-    }
-  }
-
-  socket.on('disconnect', () => {
-    logger.info(`Socket disconnected: ${socket.id}`);
-  });
-});
+socketHandler(io, whatsappService);
 
 const PORT = process.env.PORT || 3000;
 
@@ -49,9 +27,13 @@ server.listen(PORT, async () => {
       await initializeDb();
       
       // Initialize WhatsApp Service
-      await whatsappService.initialize();
+      // We wrap it in a non-blocking catch to prevent the entire app from crashing on start if Puppeteer is slow
+      whatsappService.initialize().catch(err => {
+         logger.error('Initial WhatsApp service boot failed, will retry or wait for triggers:', err);
+      });
   } catch (err) {
-      logger.error('Failed to initialize application services:', err);
+      logger.error('Failed to initialize critical application services:', err);
+      // We only exit if the DATABASE fails, not just WhatsApp
       process.exit(1);
   }
 
