@@ -40,10 +40,10 @@ class WhatsAppService {
       },
       puppeteer: {
         headless: true,
-        // Remove hardcoded Windows path to prevent crash on Render/Linux
+        // Use undefined instead of null so Puppeteer uses its default bundled chromium
         executablePath: process.env.RENDER || process.env.NODE_ENV === 'production' 
-          ? null // Let Puppeteer use its downloaded Chromium on Render
-          : undefined, // Let Puppeteer use its downloaded Chromium locally or fallback to default
+          ? undefined 
+          : undefined, 
         launchTimeout: 120000,
         args: [
           '--no-sandbox',

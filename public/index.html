@@ -312,6 +312,9 @@
 
         async function checkStatus() {
             try {
+                const response = await fetch('/api/auth/status');
+                const { data } = await response.json();
+                
                 if (data.ready) {
                     handleReady();
                     logoutBtn.disabled = false;

@@ -37,6 +37,9 @@ app.use(express.static('public'));
 // Rate limiter for API
 app.use('/api', apiLimiter);
 
+// Health check endpoint for Render/uptime monitoring
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 // Routes
 app.use('/api/messages', messageRoutes);
 app.use('/api/auth', authRoutes);
